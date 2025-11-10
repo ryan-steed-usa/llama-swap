@@ -1,5 +1,6 @@
+ARG BASE_IMAGE=ghcr.io/ggml-org/llama.cpp
 ARG BASE_TAG=server-cuda
-FROM ghcr.io/ggml-org/llama.cpp:${BASE_TAG}
+FROM ${BASE_IMAGE}:${BASE_TAG}
 
 # has to be after the FROM
 ARG LS_VER=170
