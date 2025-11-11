@@ -1085,35 +1085,35 @@ func TestProxyManager_ProxiedStreamingEndpointReturnsNoBufferingHeader(t *testin
 }
 
 func TestProxyManager_ApiGetVersion(t *testing.T) {
-    config := config.AddDefaultGroupToConfig(config.Config{
-        HealthCheckTimeout: 15,
-        Models: map[string]config.ModelConfig{
-            "model1": getTestSimpleResponderConfig("model1"),
-        },
-        LogLevel: "error",
-    })
+	config := config.AddDefaultGroupToConfig(config.Config{
+		HealthCheckTimeout: 15,
+		Models: map[string]config.ModelConfig{
+			"model1": getTestSimpleResponderConfig("model1"),
+		},
+		LogLevel: "error",
+	})
 
-    proxy := New(config)
-    defer proxy.StopProcesses(StopWaitForInflightRequest)
+	proxy := New(config)
+	defer proxy.StopProcesses(StopWaitForInflightRequest)
 
-    req := httptest.NewRequest("GET", "/api/version", nil)
-    w := CreateTestResponseRecorder()
+	req := httptest.NewRequest("GET", "/api/version", nil)
+	w := CreateTestResponseRecorder()
 
-    proxy.ServeHTTP(w, req)
+	proxy.ServeHTTP(w, req)
 
-    assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code)
 
-    // Ensure json response
-    assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+	// Ensure json response
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
 
-    var responseData map[string]interface{}
-    if err := json.Unmarshal(w.Body.Bytes(), &responseData); err != nil {
-        t.Fatalf("Failed to parse JSON response: %v", err)
-    }
+	var responseData map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &responseData); err != nil {
+		t.Fatalf("Failed to parse JSON response: %v", err)
+	}
 
-    // Check for version
-    _, versionExists := responseData["version"]
-    assert.True(t, versionExists, "version should exist in the response")
-    _, ok := responseData["version"].(string)
-    assert.True(t, ok, "version should be a string")
+	// Check for version
+	_, versionExists := responseData["version"]
+	assert.True(t, versionExists, "version should exist in the response")
+	_, ok := responseData["version"].(string)
+	assert.True(t, ok, "version should be a string")
 }

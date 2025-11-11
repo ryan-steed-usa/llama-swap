@@ -7,12 +7,12 @@ type VersionStruct struct {
 }
 
 var (
-	Version string = "0"
-	Commit  string = "abcd1234"
-	Date    string = "unknown"
-	VersionJSON    = VersionStruct{
+	Version     string = "0"
+	Commit      string = "abcd1234"
+	Date        string = "unknown"
+	VersionJSON        = VersionStruct{
 		Version: Version,
-		Commit: Commit,
-		Date: Date,
+		Commit:  Commit,
+		Date:    Date,
 	}
 )
