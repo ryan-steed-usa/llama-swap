@@ -257,7 +257,7 @@ export function APIProvider({ children, autoStartAPIEvents = true }: APIProvider
       versionInfo,
       getVersionInfo,
     }),
-    [models, listModels, unloadAllModels, loadModel, enableAPIEvents, proxyLogs, upstreamLogs, metrics, connectionStatus, versionInfo]
+    [models, listModels, unloadAllModels, unloadSingleModel, loadModel, enableAPIEvents, proxyLogs, upstreamLogs, metrics, connectionStatus, versionInfo, getVersionInfo]
   );
 
   return <APIContext.Provider value={value}>{children}</APIContext.Provider>;

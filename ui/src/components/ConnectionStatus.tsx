@@ -21,7 +21,7 @@ const ConnectionStatusIcon = () => {
         connectionStatus === "connected") {
       getVersionInfo();
     }
-  }, [connectionStatus]);
+  }, [connectionStatus, getVersionInfo]);
 
   const title = useMemo(() => {
     let baseTitle = `event stream: ${connectionStatus}`;
