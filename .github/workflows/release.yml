@@ -53,6 +53,7 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GO111MODULE: ${{ vars.GO111MODULE }}
 
   trigger-tap-update:
     runs-on: ubuntu-latest
