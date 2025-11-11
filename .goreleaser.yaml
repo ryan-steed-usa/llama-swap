@@ -3,6 +3,7 @@ version: 2
 builds:
   - env:
       - CGO_ENABLED=0
+      - GO111MODULE={{ if index .Env "GO111MODULE"  }}{{ .Env.GO111MODULE }}{{ else }}auto{{ end }}
     goos:
       - linux
       - darwin
