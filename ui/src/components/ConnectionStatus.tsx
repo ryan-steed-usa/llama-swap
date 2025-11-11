@@ -24,7 +24,7 @@ const ConnectionStatusIcon = () => {
   }, [connectionStatus, getVersionInfo]);
 
   const title = useMemo(() => {
-    let baseTitle = `event stream: ${connectionStatus}`;
+    let baseTitle = `Event Stream: ${connectionStatus}`;
     if (versionInfo) {
       baseTitle += `\nVersion: ${versionInfo.version}\nCommit: ${versionInfo.commit}\nDate: ${versionInfo.date}`;
     }
