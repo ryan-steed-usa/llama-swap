@@ -75,6 +75,54 @@ func New(config config.Config) *ProxyManager {
 		upstreamLogger.SetLogLevel(LevelInfo)
 	}
 
+	switch strings.ToLower(strings.TrimSpace(config.LogTimeFormat)) {
+	case "ansic":
+		proxyLogger.SetLogTimeFormat(time.ANSIC)
+		upstreamLogger.SetLogTimeFormat(time.ANSIC)
+	case "unixdate":
+		proxyLogger.SetLogTimeFormat(time.UnixDate)
+		upstreamLogger.SetLogTimeFormat(time.UnixDate)
+	case "rubydate":
+		proxyLogger.SetLogTimeFormat(time.RubyDate)
+		upstreamLogger.SetLogTimeFormat(time.RubyDate)
+	case "rfc822":
+		proxyLogger.SetLogTimeFormat(time.RFC822)
+		upstreamLogger.SetLogTimeFormat(time.RFC822)
+	case "rfc822z":
+		proxyLogger.SetLogTimeFormat(time.RFC822Z)
+		upstreamLogger.SetLogTimeFormat(time.RFC822Z)
+	case "rfc850":
+		proxyLogger.SetLogTimeFormat(time.RFC850)
+		upstreamLogger.SetLogTimeFormat(time.RFC850)
+	case "rfc1123":
+		proxyLogger.SetLogTimeFormat(time.RFC1123)
+		upstreamLogger.SetLogTimeFormat(time.RFC1123)
+	case "rfc1123z":
+		proxyLogger.SetLogTimeFormat(time.RFC1123Z)
+		upstreamLogger.SetLogTimeFormat(time.RFC1123Z)
+	case "rfc3339":
+		proxyLogger.SetLogTimeFormat(time.RFC3339)
+		upstreamLogger.SetLogTimeFormat(time.RFC3339)
+	case "rfc3339nano":
+		proxyLogger.SetLogTimeFormat(time.RFC3339Nano)
+		upstreamLogger.SetLogTimeFormat(time.RFC3339Nano)
+	case "kitchen":
+		proxyLogger.SetLogTimeFormat(time.Kitchen)
+		upstreamLogger.SetLogTimeFormat(time.Kitchen)
+	case "stamp":
+		proxyLogger.SetLogTimeFormat(time.Stamp)
+		upstreamLogger.SetLogTimeFormat(time.Stamp)
+	case "stampmilli":
+		proxyLogger.SetLogTimeFormat(time.StampMilli)
+		upstreamLogger.SetLogTimeFormat(time.StampMilli)
+	case "stampmicro":
+		proxyLogger.SetLogTimeFormat(time.StampMicro)
+		upstreamLogger.SetLogTimeFormat(time.StampMicro)
+	case "stampnano":
+		proxyLogger.SetLogTimeFormat(time.StampNano)
+		upstreamLogger.SetLogTimeFormat(time.StampNano)
+	}
+
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 
 	var maxMetrics int
@@ -376,28 +424,38 @@ func (pm *ProxyManager) listModelsHandler(c *gin.Context) {
 			continue
 		}
 
-		record := gin.H{
-			"id":       id,
-			"object":   "model",
-			"created":  createdTime,
-			"owned_by": "llama-swap",
+		newRecord := func(modelId string) gin.H {
+			record := gin.H{
+				"id":       modelId,
+				"object":   "model",
+				"created":  createdTime,
+				"owned_by": "llama-swap",
+			}
+
+			if name := strings.TrimSpace(modelConfig.Name); name != "" {
+				record["name"] = name
+			}
+			if desc := strings.TrimSpace(modelConfig.Description); desc != "" {
+				record["description"] = desc
+			}
+
+			// Add metadata if present
+			if len(modelConfig.Metadata) > 0 {
+				record["meta"] = gin.H{
+					"llamaswap": modelConfig.Metadata,
+				}
+			}
+			return record
 		}
 
-		if name := strings.TrimSpace(modelConfig.Name); name != "" {
-			record["name"] = name
-		}
-		if desc := strings.TrimSpace(modelConfig.Description); desc != "" {
-			record["description"] = desc
-		}
+		data = append(data, newRecord(id))
 
-		// Add metadata if present
-		if len(modelConfig.Metadata) > 0 {
-			record["meta"] = gin.H{
-				"llamaswap": modelConfig.Metadata,
+		// Include aliases
+		for _, alias := range modelConfig.Aliases {
+			if alias := strings.TrimSpace(alias); alias != "" {
+				data = append(data, newRecord(alias))
 			}
 		}
-
-		data = append(data, record)
 	}
 
 	// Sort by the "id" key
