@@ -121,7 +121,7 @@ func New(config config.Config) *ProxyManager {
 	case "stampnano":
 		proxyLogger.SetLogTimeFormat(time.StampNano)
 		upstreamLogger.SetLogTimeFormat(time.StampNano)
-        }
+	}
 
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 
@@ -431,20 +431,20 @@ func (pm *ProxyManager) listModelsHandler(c *gin.Context) {
 				"created":  createdTime,
 				"owned_by": "llama-swap",
 			}
-			
+
 			if name := strings.TrimSpace(modelConfig.Name); name != "" {
 				record["name"] = name
 			}
 			if desc := strings.TrimSpace(modelConfig.Description); desc != "" {
-				record["description"] = desc                 
-			}       
-			
+				record["description"] = desc
+			}
+
 			// Add metadata if present
-			if len(modelConfig.Metadata) > 0 {                        
-				record["meta"] = gin.H{                                
-					"llamaswap": modelConfig.Metadata,                         
-				}                 
-			}        
+			if len(modelConfig.Metadata) > 0 {
+				record["meta"] = gin.H{
+					"llamaswap": modelConfig.Metadata,
+				}
+			}
 			return record
 		}
 
