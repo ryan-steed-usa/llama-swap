@@ -1147,3 +1147,52 @@ func TestProxyManager_ProxiedStreamingEndpointReturnsNoBufferingHeader(t *testin
 	assert.Equal(t, "no", rec.Header().Get("X-Accel-Buffering"))
 	assert.Contains(t, rec.Header().Get("Content-Type"), "text/event-stream")
 }
+
+func TestProxyManager_ApiGetVersion(t *testing.T) {
+	config := config.AddDefaultGroupToConfig(config.Config{
+		HealthCheckTimeout: 15,
+		Models: map[string]config.ModelConfig{
+			"model1": getTestSimpleResponderConfig("model1"),
+		},
+		LogLevel: "error",
+	})
+
+	proxy := New(config)
+	defer proxy.StopProcesses(StopWaitForInflightRequest)
+
+	req := httptest.NewRequest("GET", "/api/version", nil)
+	w := CreateTestResponseRecorder()
+
+	proxy.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Ensure json response
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+	var responseData map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &responseData); err != nil {
+		t.Fatalf("Failed to parse JSON response: %v", err)
+	}
+
+	// Check for buildDate
+	_, buildDateExists := responseData["build_date"]
+	assert.True(t, buildDateExists, "build_date should exist in the response")
+	_, buildDateOK := responseData["build_date"].(string)
+	assert.True(t, buildDateOK, "build_date should be a string")
+	assert.NotEqual(t, "", "build_date should not be empty")
+
+	// Check for commit
+	_, commitExists := responseData["commit"]
+	assert.True(t, commitExists, "commit should exist in the response")
+	_, commitOK := responseData["commit"].(string)
+	assert.True(t, commitOK, "commit should be a string")
+	assert.NotEqual(t, "", "commit should not be empty")
+
+	// Check for version
+	_, versionExists := responseData["version"]
+	assert.True(t, versionExists, "version should exist in the response")
+	_, versionOK := responseData["version"].(string)
+	assert.True(t, versionOK, "version should be a string")
+	assert.NotEqual(t, "", "version should not be empty")
+}
