@@ -112,6 +112,7 @@ func main() {
 			}
 			srv.Handler = proxy.New(conf)
 		}
+		srv.Handler.(*proxy.ProxyManager).SetVersion(date, commit, version)
 	}
 
 	// load the initial proxy manager

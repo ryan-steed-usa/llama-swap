@@ -437,6 +437,70 @@ func TestProxyManager_ListModelsHandler_SortedByID(t *testing.T) {
 	}
 }
 
+func TestProxyManager_ListModelsHandler_IncludeAliasesInList(t *testing.T) {
+	// Configure alias
+	config := config.Config{
+		HealthCheckTimeout:   15,
+		IncludeAliasesInList: true,
+		Models: map[string]config.ModelConfig{
+			"model1": func() config.ModelConfig {
+				mc := getTestSimpleResponderConfig("model1")
+				mc.Name = "Model 1"
+				mc.Aliases = []string{"alias1"}
+				return mc
+			}(),
+		},
+		LogLevel: "error",
+	}
+
+	proxy := New(config)
+
+	// Request models list
+	req := httptest.NewRequest("GET", "/v1/models", nil)
+	w := CreateTestResponseRecorder()
+	proxy.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response struct {
+		Data []map[string]interface{} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to parse JSON response: %v", err)
+	}
+
+	// We expect both base id and alias
+	var model1Data, alias1Data map[string]any
+	for _, model := range response.Data {
+		if model["id"] == "model1" {
+			model1Data = model
+		} else if model["id"] == "alias1" {
+			alias1Data = model
+		}
+	}
+
+	// Verify model1 has name
+	assert.NotNil(t, model1Data)
+	_, exists := model1Data["name"]
+	if !assert.True(t, exists, "model1 should have name key") {
+		t.FailNow()
+	}
+	name1, ok := model1Data["name"].(string)
+	assert.True(t, ok, "name1 should be a string")
+
+	// Verify alias1 has name
+	assert.NotNil(t, alias1Data)
+	_, exists = alias1Data["name"]
+	if !assert.True(t, exists, "alias1 should have name key") {
+		t.FailNow()
+	}
+	name2, ok := alias1Data["name"].(string)
+	assert.True(t, ok, "name2 should be a string")
+
+	// Name keys should match
+	assert.Equal(t, name1, name2)
+}
+
 func TestProxyManager_Shutdown(t *testing.T) {
 	// make broken model configurations
 	model1Config := getTestSimpleResponderConfigPort("model1", 9991)
@@ -1082,4 +1146,53 @@ func TestProxyManager_ProxiedStreamingEndpointReturnsNoBufferingHeader(t *testin
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "no", rec.Header().Get("X-Accel-Buffering"))
 	assert.Contains(t, rec.Header().Get("Content-Type"), "text/event-stream")
+}
+
+func TestProxyManager_ApiGetVersion(t *testing.T) {
+	config := config.AddDefaultGroupToConfig(config.Config{
+		HealthCheckTimeout: 15,
+		Models: map[string]config.ModelConfig{
+			"model1": getTestSimpleResponderConfig("model1"),
+		},
+		LogLevel: "error",
+	})
+
+	proxy := New(config)
+	defer proxy.StopProcesses(StopWaitForInflightRequest)
+
+	req := httptest.NewRequest("GET", "/api/version", nil)
+	w := CreateTestResponseRecorder()
+
+	proxy.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Ensure json response
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+	var responseData map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &responseData); err != nil {
+		t.Fatalf("Failed to parse JSON response: %v", err)
+	}
+
+	// Check for buildDate
+	_, buildDateExists := responseData["build_date"]
+	assert.True(t, buildDateExists, "build_date should exist in the response")
+	_, buildDateOK := responseData["build_date"].(string)
+	assert.True(t, buildDateOK, "build_date should be a string")
+	assert.NotEqual(t, "", "build_date should not be empty")
+
+	// Check for commit
+	_, commitExists := responseData["commit"]
+	assert.True(t, commitExists, "commit should exist in the response")
+	_, commitOK := responseData["commit"].(string)
+	assert.True(t, commitOK, "commit should be a string")
+	assert.NotEqual(t, "", "commit should not be empty")
+
+	// Check for version
+	_, versionExists := responseData["version"]
+	assert.True(t, versionExists, "version should exist in the response")
+	_, versionOK := responseData["version"].(string)
+	assert.True(t, versionOK, "version should be a string")
+	assert.NotEqual(t, "", "version should not be empty")
 }

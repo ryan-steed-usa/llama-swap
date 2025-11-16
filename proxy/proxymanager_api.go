@@ -28,6 +28,7 @@ func addApiHandlers(pm *ProxyManager) {
 		apiGroup.POST("/models/unload/*model", pm.apiUnloadSingleModelHandler)
 		apiGroup.GET("/events", pm.apiSendEvents)
 		apiGroup.GET("/metrics", pm.apiGetMetrics)
+		apiGroup.GET("/version", pm.apiGetVersion)
 	}
 }
 
@@ -226,4 +227,18 @@ func (pm *ProxyManager) apiUnloadSingleModelHandler(c *gin.Context) {
 	} else {
 		c.String(http.StatusOK, "OK")
 	}
+}
+
+func (pm *ProxyManager) apiGetVersion(c *gin.Context) {
+	versionMap := map[string]string{
+		"version":    pm.version,
+		"commit":     pm.commit,
+		"build_date": pm.buildDate,
+	}
+	data, err := json.Marshal(versionMap)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get version"})
+		return
+	}
+	c.Data(http.StatusOK, "application/json", data)
 }
