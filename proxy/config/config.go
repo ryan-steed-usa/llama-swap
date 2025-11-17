@@ -113,6 +113,7 @@ type Config struct {
 	HealthCheckTimeout int                    `yaml:"healthCheckTimeout"`
 	LogRequests        bool                   `yaml:"logRequests"`
 	LogLevel           string                 `yaml:"logLevel"`
+	LogTimeFormat      string                 `yaml:"logTimeFormat"`
 	MetricsMaxInMemory int                    `yaml:"metricsMaxInMemory"`
 	Models             map[string]ModelConfig `yaml:"models"` /* key is model ID */
 	Profiles           map[string][]string    `yaml:"profiles"`
@@ -132,6 +133,9 @@ type Config struct {
 
 	// send loading state in reasoning
 	SendLoadingState bool `yaml:"sendLoadingState"`
+
+	// present aliases to /v1/models OpenAI API listing
+	IncludeAliasesInList bool `yaml:"includeAliasesInList"`
 }
 
 func (c *Config) RealModelName(search string) (string, bool) {
@@ -172,6 +176,7 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 		HealthCheckTimeout: 120,
 		StartPort:          5800,
 		LogLevel:           "info",
+		LogTimeFormat:      "",
 		MetricsMaxInMemory: 1000,
 	}
 	err = yaml.Unmarshal(data, &config)
