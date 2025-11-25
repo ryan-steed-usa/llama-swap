@@ -21,7 +21,7 @@ if [[ -z "$GITHUB_TOKEN" ]]; then
 fi
 
 # Set llama-swap repository
-LS_REPO=${GITHUB_REPOSITORY:-mostlygeek/llama-swap}
+export LS_REPO=${GITHUB_REPOSITORY:-mostlygeek/llama-swap}
 
 # the most recent llama-swap tag
 # have to strip out the 'v' due to .tar.gz file naming
