@@ -20,9 +20,12 @@ if [[ -z "$GITHUB_TOKEN" ]]; then
   exit 1
 fi
 
+# Set llama-swap repository
+LS_REPO=${GITHUB_REPOSITORY:-mostlygeek/llama-swap}
+
 # the most recent llama-swap tag
 # have to strip out the 'v' due to .tar.gz file naming
-LS_VER=$(curl -s https://api.github.com/repos/mostlygeek/llama-swap/releases/latest | jq -r .tag_name | sed 's/v//')
+LS_VER=$(curl -s https://api.github.com/repos/${LS_REPO}/releases/latest | jq -r .tag_name | sed 's/v//')
 
 if [ "$ARCH" == "cpu" ]; then
     # cpu only containers just use the server tag
@@ -46,8 +49,8 @@ if [[ -z "$LCPP_TAG" ]]; then
 fi
 
 for CONTAINER_TYPE in non-root root; do
-  CONTAINER_TAG="ghcr.io/mostlygeek/llama-swap:v${LS_VER}-${ARCH}-${LCPP_TAG}"
-  CONTAINER_LATEST="ghcr.io/mostlygeek/llama-swap:${ARCH}"
+  CONTAINER_TAG="ghcr.io/${LS_REPO}/llama-swap:v${LS_VER}-${ARCH}-${LCPP_TAG}"
+  CONTAINER_LATEST="ghcr.io/${LS_REPO}/llama-swap:${ARCH}"
   USER_UID=0
   USER_GID=0
   USER_HOME=/root
