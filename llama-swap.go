@@ -31,6 +31,7 @@ func main() {
 	listenStr := flag.String("listen", "", "listen ip/port")
 	certFile := flag.String("tls-cert-file", "", "TLS certificate file")
 	keyFile := flag.String("tls-key-file", "", "TLS key file")
+	redirectListenStr := flag.String("tls-redirect", "", "enforce TLS with HTTP redirect from specified listen ip/port")
 	showVersion := flag.Bool("version", false, "show version of build")
 	watchConfig := flag.Bool("watch-config", false, "Automatically reload config file on change")
 
@@ -65,6 +66,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	var redirectTLS = (*redirectListenStr != "")
+	if redirectTLS && !useTLS {
+		fmt.Println("Error: --tls-redirect requires that TLS is enabled")
+		os.Exit(1)
+	}
+
 	// Set default ports.
 	if *listenStr == "" {
 		defaultPort := ":8080"
@@ -77,11 +84,17 @@ func main() {
 	// Setup channels for server management
 	exitChan := make(chan struct{})
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
 	// Create server with initial handler
 	srv := &http.Server{
 		Addr: *listenStr,
+	}
+	var srvRedirect *http.Server
+	if redirectTLS {
+		srvRedirect = &http.Server{
+			Addr: *redirectListenStr,
+		}
 	}
 
 	// Support for watching config and reloading when it changes
@@ -95,9 +108,17 @@ func main() {
 
 			fmt.Println("Configuration Changed")
 			currentPM.Shutdown()
-			newPM := proxy.New(conf)
-			newPM.SetVersion(date, commit, version)
+			newPM := proxy.New(conf, false)
+			newPM.SetPMVars(date, commit, version, useTLS, "")
 			srv.Handler = newPM
+			if redirectTLS {
+				if currentRedir, ok := srvRedirect.Handler.(*proxy.ProxyManager); ok {
+					currentRedir.Shutdown()
+				}
+				newRedir := proxy.New(conf, true)
+				newRedir.SetPMVars(date, commit, version, useTLS, *listenStr)
+				srvRedirect.Handler = newRedir
+			}
 			fmt.Println("Configuration Reloaded")
 
 			// wait a few seconds and tell any UI to reload
@@ -112,9 +133,14 @@ func main() {
 				fmt.Printf("Error, unable to load configuration: %v\n", err)
 				os.Exit(1)
 			}
-			newPM := proxy.New(conf)
-			newPM.SetVersion(date, commit, version)
+			newPM := proxy.New(conf, false)
+			newPM.SetPMVars(date, commit, version, useTLS, "")
 			srv.Handler = newPM
+			if redirectTLS {
+				newRedir := proxy.New(conf, true)
+				newRedir.SetPMVars(date, commit, version, useTLS, *listenStr)
+				srvRedirect.Handler = newRedir
+			}
 		}
 	}
 
@@ -170,24 +196,54 @@ func main() {
 		}()
 	}
 
-	// shutdown on signal
+	// shutdown on SIGINT/SIGTERM
+	// reload config on SIGHUP
 	go func() {
-		sig := <-sigChan
-		fmt.Printf("Received signal %v, shutting down...\n", sig)
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		defer cancel()
+		for sig := range sigChan {
+			switch sig {
+			case syscall.SIGINT, syscall.SIGTERM:
+				fmt.Printf("Received signal %v, shutting down...\n", sig)
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				defer cancel()
 
-		if pm, ok := srv.Handler.(*proxy.ProxyManager); ok {
-			pm.Shutdown()
-		} else {
-			fmt.Println("srv.Handler is not of type *proxy.ProxyManager")
-		}
+				if pm, ok := srv.Handler.(*proxy.ProxyManager); ok {
+					pm.Shutdown()
+				} else {
+					fmt.Println("srv.Handler is not of type *proxy.ProxyManager")
+				}
 
-		if err := srv.Shutdown(ctx); err != nil {
-			fmt.Printf("Server shutdown error: %v\n", err)
+				if err := srv.Shutdown(ctx); err != nil {
+					fmt.Printf("Server shutdown error: %v\n", err)
+				}
+				close(exitChan)
+				return
+			case syscall.SIGHUP:
+				fmt.Println("Received SIGHUP. Reloading configuration...")
+				reloadProxyManager()
+			default:
+				log.Printf("Unhandled signal: %v", sig)
+			}
 		}
-		close(exitChan)
 	}()
+	if redirectTLS {
+		go func() {
+			sig := <-sigChan
+			fmt.Printf("Redirect Server received signal %v, shutting down...\n", sig)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			defer cancel()
+
+			if rd, ok := srvRedirect.Handler.(*proxy.ProxyManager); ok {
+				rd.Shutdown()
+			} else {
+				fmt.Println("srvRedirect.Handler is not of type *proxy.ProxyManager")
+			}
+
+			if err := srvRedirect.Shutdown(ctx); err != nil {
+				fmt.Printf("Redirect Server shutdown error: %v\n", err)
+			}
+			close(exitChan)
+		}()
+	}
 
 	// Start server
 	go func() {
@@ -203,6 +259,16 @@ func main() {
 			log.Fatalf("Fatal server error: %v\n", err)
 		}
 	}()
+	if redirectTLS {
+		go func() {
+			var err error
+			fmt.Printf("llama-swap TLS redirect listening on http://%s\n", *redirectListenStr)
+			err = srvRedirect.ListenAndServe()
+			if err != nil && err != http.ErrServerClosed {
+				log.Fatalf("Fatal redirect server error: %v\n", err)
+			}
+		}()
+	}
 
 	// Wait for exit signal
 	<-exitChan

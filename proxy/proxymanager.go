@@ -50,9 +50,13 @@ type ProxyManager struct {
 	buildDate string
 	commit    string
 	version   string
+
+	// tls
+	useTLS          bool
+	redirectTLSAddr string
 }
 
-func New(config config.Config) *ProxyManager {
+func New(config config.Config, redirLogPrefix bool) *ProxyManager {
 	// set up loggers
 	stdoutLogger := NewLogMonitorWriter(os.Stdout)
 	upstreamLogger := NewLogMonitorWriter(stdoutLogger)
@@ -104,6 +108,10 @@ func New(config config.Config) *ProxyManager {
 		upstreamLogger.SetLogTimeFormat(timeFormat)
 	}
 
+	if redirLogPrefix {
+		proxyLogger.SetPrefix("TLS Redirect")
+	}
+
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 
 	var maxMetrics int
@@ -131,6 +139,9 @@ func New(config config.Config) *ProxyManager {
 		buildDate: "unknown",
 		commit:    "abcd1234",
 		version:   "0",
+
+		useTLS:          false,
+		redirectTLSAddr: "",
 	}
 
 	// create the process groups
@@ -142,7 +153,7 @@ func New(config config.Config) *ProxyManager {
 	pm.setupGinEngine()
 
 	// run any startup hooks
-	if len(config.Hooks.OnStartup.Preload) > 0 {
+	if len(config.Hooks.OnStartup.Preload) > 0 && !redirLogPrefix {
 		// do it in the background, don't block startup -- not sure if good idea yet
 		go func() {
 			discardWriter := &DiscardWriter{}
@@ -233,6 +244,14 @@ func (pm *ProxyManager) setupGinEngine() {
 			return
 		}
 		c.Next()
+	})
+
+	// Redirect to TLS
+	pm.ginEngine.Use(func(c *gin.Context) {
+		if pm.redirectTLSAddr != "" {
+			c.Redirect(http.StatusMovedPermanently, "https://"+pm.redirectTLSAddr+c.Request.URL.String())
+			c.Abort()
+		}
 	})
 
 	// Set up routes using the Gin engine
@@ -334,6 +353,10 @@ func (pm *ProxyManager) setupGinEngine() {
 
 // ServeHTTP implements http.Handler interface
 func (pm *ProxyManager) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if pm.useTLS {
+		// enforce TLS with HSTS https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Strict-Transport-Security
+		w.Header().Add("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+	}
 	pm.ginEngine.ServeHTTP(w, r)
 }
 
@@ -782,10 +805,12 @@ func (pm *ProxyManager) findGroupByModelName(modelName string) *ProcessGroup {
 	return nil
 }
 
-func (pm *ProxyManager) SetVersion(buildDate string, commit string, version string) {
+func (pm *ProxyManager) SetPMVars(buildDate string, commit string, version string, useTLS bool, redirectTLSAddr string) {
 	pm.Lock()
 	defer pm.Unlock()
 	pm.buildDate = buildDate
 	pm.commit = commit
 	pm.version = version
+	pm.useTLS = useTLS
+	pm.redirectTLSAddr = redirectTLSAddr
 }
